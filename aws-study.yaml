@@ -79,6 +79,12 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref routeTableName
 
+  routeTableAssocName2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref routeTableName
+
   # EC2Securitygroup
   secGroupName:
     Type: AWS::EC2::SecurityGroup
@@ -89,7 +95,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0
+          CidrIp: 125.195.21.193/32
         - IpProtocol: tcp 
           FromPort: 80
           ToPort: 80
@@ -180,7 +186,7 @@ Resources:
       SubnetId: !Ref Privatesubnet2
       RouteTableId: !Ref PrivaterouteTableName
 
-#DBSubnetgroup
+  #DBSubnetgroup
   rdsDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -246,7 +252,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       Name: ELBtargetgroup
-      Port: 80
+      Port: 8080
       Protocol: HTTP
       VpcId: !Ref VPC
       HealthyThresholdCount: 2
@@ -259,7 +265,6 @@ Resources:
         HttpCode: 200
       Targets:
         - Id: !Ref myEC2Instance
-          Port: 8080
 
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
