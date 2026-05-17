@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "aws study test"
+
+Parameters:
+  DBPassword:
+    Type: String
+    NoEcho: true
+
+Resources:
+
+  # VPC
+  VPC: 
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: aws-study-vpc
+
+  # Subnet
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Name
+          Value: aws-study-publicsub
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: aws-study-publicsub2
+
+  # InternetGateway
+  igwName:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: aws-study-igw
+
+  #VPCGatewayAttachment
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref igwName
+
+  # RouteTable
+  routeTableName:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: aws-study-rt
+
+  routeName:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref routeTableName
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref igwName
+
+  routeTableAssocName:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref routeTableName
+
+  routeTableAssocName2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref routeTableName
+
+  # EC2Securitygroup
+  secGroupName:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: allow ssh
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 125.195.21.193/32
+        - IpProtocol: tcp 
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ELBsecGroupName
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          SourceSecurityGroupId: !Ref ELBsecGroupName
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-sg 
+  
+  
+  # EC2 
+  myEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: ikura
+      ImageId: ami-05284d16d6b516ace
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnet
+      Monitoring: false
+      SecurityGroupIds:
+        - !Ref secGroupName
+      Tags:
+        - Key: Name
+          Value: aws-study-ec2
+
+  # RDSSecurityGroup
+  RDSsgName:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: rds-securityGroup
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref secGroupName
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-RDSSecurityGroupe 
+
+  #PrivateSubnet
+  Privatesubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: aws-study-prsub1
+
+  Privatesubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: aws-study-prsub2
+
+  PrivaterouteTableName:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: aws-study-prirt
+
+  PrivateSubnet1Associarion:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Privatesubnet1
+      RouteTableId: !Ref PrivaterouteTableName
+  
+  PrivateSubnet2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Privatesubnet2
+      RouteTableId: !Ref PrivaterouteTableName
+
+  #DBSubnetgroup
+  rdsDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS subnet group
+      SubnetIds:
+        - !Ref Privatesubnet1
+        - !Ref Privatesubnet2
+      Tags:
+        - Key: Name
+          Value: aws-study-subnetgr
+
+  #RDS
+  rdsDBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 8
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      DBInstanceClass: db.t3.micro 
+      Port: 3306
+      StorageType: gp2
+      BackupRetentionPeriod: 1
+      DBSubnetGroupName: !Ref rdsDBSubnetGroup
+      Engine: mysql
+      DBName: awsstudy
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSsgName
+      Tags:
+        - Key: Name
+          Value: aws-study-rds
+
+
+  # ELB
+  myELBname:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: aws-study-alb
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref PublicSubnet
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref ELBsecGroupName
+
+  ELBsecGroupName:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: aws-study-ELBsecuritygroup
+
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ELBtargetgroup
+      Port: 8080
+      Protocol: HTTP
+      VpcId: !Ref VPC
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 5
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: "/"
+      HealthCheckIntervalSeconds: 30
+      Matcher:
+        HttpCode: 200
+      Targets:
+        - Id: !Ref myEC2Instance
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref myELBname
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ELBTargetGroup
+ 
