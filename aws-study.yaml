@@ -276,3 +276,113 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ELBTargetGroup
  
+#Alarm 
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: awsstudy-alarm-topic
+      Subscription:
+        - Protocol: email
+          Endpoint: ja.matane.iwtr@gmail.com
+
+
+  cloudWatchAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "CPU使用率が0.1%を越えたら通知"
+      AlarmName: awsstudy-cpu-high
+      AlarmActions:
+        - !Ref AlarmTopic 
+      OKActions: 
+        - !Ref AlarmTopic     
+
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions: 
+        - Name: InstanceId
+          Value: !Ref myEC2Instance 
+
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0.1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+       
+
+#WAF
+  WAFWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: WAFwebACL
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: WAFWebACLMetric
+      Rules:
+        - Name: ManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CommonRuleSetMetric
+
+  MyWebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !GetAtt myELBname.LoadBalancerArn
+      WebACLArn: !GetAtt WAFWebACL.Arn
+
+  
+ #アクセスログ(VPC Flow Logs)をCloudWatch Logsに連携 
+  VpcFlowLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete     
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: vpc-flowlogs-aws-study
+      RetentionInDays: 7 
+
+  VpcFlowLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: vpc-flowlog-to-cwlogs-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com  
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: vpc-flowlog-write-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: !GetAtt VpcFlowLogGroup.Arn
+
+  
+  VpcFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      ResourceType: VPC
+      ResourceId: !Ref VPC        
+      TrafficType: ALL
+      LogDestinationType: cloud-watch-logs
+      LogGroupName: !Ref VpcFlowLogGroup
+      DeliverLogsPermissionArn: !GetAtt VpcFlowLogRole.Arn
+      MaxAggregationInterval: 60
