@@ -37,8 +37,8 @@ module "ec2" {
 # EC2のSGに「ALBからの通信を許可する」ルールを後から追加
 resource "aws_security_group_rule" "ec2_from_alb" {
   type                     = "ingress"
-  from_port                = 80
-  to_port                  = 80
+  from_port                = 8080
+  to_port                  = 8080
   protocol                 = "tcp"
   security_group_id        = module.ec2.security_group_id       # EC2側のSG
   source_security_group_id = module.alb.alb_security_group_id   # ALB側のSG
